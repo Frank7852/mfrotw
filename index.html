@@ -52,8 +52,10 @@ canvas{width:100%;max-width:560px;height:auto;border-radius:6px;box-shadow:0 8px
   <div style="font-size:12px;color:var(--mu);margin-top:8px">Ou use arquivos de fonte seus:</div>
   <input type="file" id="fontFiles" accept=".woff2,.woff,.ttf,.otf" multiple style="margin-top:4px">
   <div style="font-size:12px;color:var(--mu);margin-top:4px">Os arquivos ficam só no seu navegador; nada é enviado nem hospedado.</div>
-  <label>Cor de destaque</label>
-  <div class="row" style="align-items:center"><input type="color" id="ac" value="#a8629a"><button class="sec" id="auto" type="button">Pegar cor da capa</button></div>
+  <label>Cores da capa</label>
+  <div id="pal" style="display:flex;gap:8px;flex-wrap:wrap"></div>
+  <div style="font-size:12px;color:var(--mu);margin-top:6px">Clique numa cor para usá-la no título. A barra do rodapé usa todas.</div>
+  <select id="barStyle" style="margin-top:8px;width:100%;padding:9px 10px;border:1px solid var(--bd);border-radius:8px;background:var(--bg);color:var(--tx);font:inherit"><option value="blocks">Barra em blocos</option><option value="grad">Barra em degradê</option></select>
   <label style="margin-top:18px"><input type="checkbox" id="spot" checked style="vertical-align:middle"> Mostrar código do Spotify</label>
  </div>
  <div class="stage">
@@ -70,7 +72,7 @@ const lines=id=>$(id).value.split('\n').map(s=>s.trim()).filter(Boolean);
 function fit(t,w,size,wt){let s=size;ctx.font=F(wt,s);while(ctx.measureText(t).width>w&&s>20){s-=2;ctx.font=F(wt,s)}return s}
 function rng(seed){let h=2166136261;for(let i=0;i<seed.length;i++){h^=seed.charCodeAt(i);h=Math.imul(h,16777619)}return()=>{h^=h<<13;h^=h>>>17;h^=h<<5;return((h>>>0)%1000)/1000}}
 function render(){
- const ac=$('ac').value;ctx.fillStyle='#fff';ctx.fillRect(0,0,W,H);
+ const ac=PAL[TI]||'#a8629a';ctx.fillStyle='#fff';ctx.fillRect(0,0,W,H);
  const cw=W-2*M,ch=1476,cy=M;
  if(img){const s=Math.max(cw/img.width,ch/img.height),w=img.width*s,h=img.height*s;ctx.save();ctx.beginPath();ctx.rect(M,cy,cw,ch);ctx.clip();ctx.drawImage(img,M+(cw-w)/2,cy+(ch-h)/2,w,h);ctx.restore()}
  else{const g=ctx.createLinearGradient(M,cy,M+cw,cy+ch);g.addColorStop(0,ac);g.addColorStop(1,'#15121a');ctx.fillStyle=g;ctx.fillRect(M,cy,cw,ch);ctx.fillStyle='rgba(255,255,255,.8)';ctx.font=F(700,40);ctx.textAlign='center';ctx.fillText('Busque um álbum ou envie a capa',W/2,cy+ch/2)}
@@ -90,16 +92,33 @@ function render(){
  ctx.textAlign='right';ctx.font=F(600,34);lines('members').slice(0,10).forEach((s,i)=>ctx.fillText(s,W-M,1832+i*Math.min(45,lh)));
  ctx.textAlign='left';ctx.font=F(800,23);ctx.fillText($('date').value,M,2205);
  ctx.textAlign='right';ctx.fillText($('dur').value,W-M,2205);
- ctx.fillStyle=ac;ctx.fillRect(M,2215,cw,16);
+ drawBar(M,2215,cw,16);
 }
 const loadImg=src=>new Promise((ok,no)=>{const i=new Image();i.onload=()=>ok(i);i.onerror=no;i.src=src});
 const msg=t=>$('msg').textContent=t||'';
 document.querySelectorAll('input,textarea').forEach(e=>e.addEventListener('input',render));
-$('cover').onchange=async e=>{const f=e.target.files[0];if(f){img=await loadImg(URL.createObjectURL(f));render()}};
+$('cover').onchange=async e=>{const f=e.target.files[0];if(f){img=await loadImg(URL.createObjectURL(f));extractPalette();render()}};
 $('codeFile').onchange=async e=>{const f=e.target.files[0];if(f){codeImg=await loadImg(URL.createObjectURL(f));render()}};
-$('auto').onclick=()=>{if(!img)return;const c=document.createElement('canvas');c.width=c.height=40;const x=c.getContext('2d');x.drawImage(img,0,0,40,40);const d=x.getImageData(0,0,40,40).data;let R=0,G=0,B=0,k=0;
- for(let i=0;i<d.length;i+=4){const mx=Math.max(d[i],d[i+1],d[i+2]),mn=Math.min(d[i],d[i+1],d[i+2]);if(mx-mn>40&&mx>90){R+=d[i];G+=d[i+1];B+=d[i+2];k++}}
- if(k){$('ac').value='#'+[R,G,B].map(v=>Math.round(v/k).toString(16).padStart(2,'0')).join('');render()}};
+let PAL=['#a8629a'],TI=0;
+const hex=c=>'#'+c.map(v=>v.toString(16).padStart(2,'0')).join('');
+function drawBar(x,y,w,h){const n=PAL.length;
+ if(n===1||$('barStyle').value==='blocks'){PAL.forEach((c,i)=>{ctx.fillStyle=c;ctx.fillRect(Math.round(x+w*i/n),y,Math.ceil(w/n)+1,h)})}
+ else{const g=ctx.createLinearGradient(x,0,x+w,0);PAL.forEach((c,i)=>g.addColorStop(i/(n-1),c));ctx.fillStyle=g;ctx.fillRect(x,y,w,h)}}
+function drawPal(){const el=$('pal');el.innerHTML='';PAL.forEach((c,i)=>{const b=document.createElement('button');b.type='button';b.title=c;
+ b.style.cssText='width:38px;height:38px;padding:0;border-radius:50%;background:'+c+';border:3px solid '+(i===TI?'var(--tx)':'var(--bd)');
+ b.onclick=()=>{TI=i;drawPal();render()};el.appendChild(b)})}
+function extractPalette(){
+ const c=document.createElement('canvas');c.width=c.height=64;const x=c.getContext('2d');x.drawImage(img,0,0,64,64);
+ const d=x.getImageData(0,0,64,64).data,B={};
+ for(let i=0;i<d.length;i+=4){const r=d[i],g=d[i+1],b=d[i+2],sat=Math.max(r,g,b)-Math.min(r,g,b),k=(r>>5)+','+(g>>5)+','+(b>>5);
+  const o=B[k]||(B[k]={w:0,n:0,r:0,g:0,b:0});o.w+=1+sat/64;o.n++;o.r+=r;o.g+=g;o.b+=b}
+ const L=Object.values(B).map(o=>({w:o.w,c:[Math.round(o.r/o.n),Math.round(o.g/o.n),Math.round(o.b/o.n)]})).sort((a,b)=>b.w-a.w);
+ const pick=[];for(const o of L){if(pick.length>=5)break;if(pick.every(p=>Math.hypot(p[0]-o.c[0],p[1]-o.c[1],p[2]-o.c[2])>70))pick.push(o.c)}
+ if(!pick.length)return;
+ const lum=c=>.3*c[0]+.59*c[1]+.11*c[2],sat=c=>Math.max(...c)-Math.min(...c);
+ const vivid=pick.reduce((a,c)=>sat(c)*(1-Math.abs(lum(c)-120)/200)>sat(a)*(1-Math.abs(lum(a)-120)/200)?c:a);
+ pick.sort((a,b)=>lum(a)-lum(b));PAL=pick.map(hex);TI=pick.indexOf(vivid);drawPal();render()}
+
 async function search(){
  const q=$('q').value.trim();if(!q)return;msg('Buscando…');$('res').innerHTML='';
  try{const r=await (await fetch('/api/search?q='+encodeURIComponent(q))).json();msg(r.length?'':'Nada encontrado.');
@@ -113,7 +132,7 @@ async function pick(id){
   $('title').value=a.title||'';$('artist').value=a.artist||'';$('tracks').value=(a.tracks||[]).join('\n');
   if(a.date){const [y,m,d]=a.date.split('-');$('date').value=+d+' de '+MES[+m-1]+' de '+y}
   if(a.duration){$('dur').value=Math.floor(a.duration/60)+' min '+a.duration%60+' s'}
-  if(a.cover){img=await loadImg('/api/img?u='+encodeURIComponent(a.cover));$('auto').click()}
+  if(a.cover){img=await loadImg('/api/img?u='+encodeURIComponent(a.cover));extractPalette()}
   render();autoCode(id)}
  catch(e){msg('Erro ao carregar o álbum.')}}
 async function setCode(sid){codeImg=await loadImg('/api/code?id='+sid);render()}
@@ -138,7 +157,7 @@ $('fontFiles').onchange=async e=>{
  else msg('Não consegui ler essas fontes.');
 };
 $('fontSel').onchange=async()=>{FAM=$('fontSel').value;try{await Promise.all([600,700,800].map(w=>document.fonts.load(F(w,30))))}catch(e){}render()};
-render();Promise.all([600,700,800].map(w=>document.fonts.load(F(w,30)))).then(render).catch(()=>{});
+drawPal();render();Promise.all([600,700,800].map(w=>document.fonts.load(F(w,30)))).then(render).catch(()=>{});
 </script>
 </body>
 </html>
