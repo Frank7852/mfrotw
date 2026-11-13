@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gerador de Posters de Álbum</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@600;700;800&family=Poppins:wght@600;700;800&family=Roboto:wght@500;700;900&family=Inter:wght@600;700;800&family=Open+Sans:wght@600;700;800&family=Lato:wght@400;700;900&family=Raleway:wght@600;700;800&family=Oswald:wght@500;600;700&family=Playfair+Display:wght@600;700;800&display=swap">
+<style>
+:root{--bg:#f5f4f7;--panel:#fff;--tx:#1c1b20;--mu:#6c6a75;--bd:#dcdae2;--ac:#a8629a}
+@media (prefers-color-scheme:dark){:root{--bg:#141318;--panel:#1d1c23;--tx:#eeedf2;--mu:#9b99a6;--bd:#33313c}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);font:15px/1.4 Montserrat,system-ui,sans-serif}
+h1{font-size:20px;margin:0 0 4px}
+.wrap{display:grid;grid-template-columns:minmax(280px,380px) 1fr;gap:24px;max-width:1100px;margin:0 auto;padding:20px}
+@media(max-width:760px){.wrap{grid-template-columns:1fr}}
+.panel{background:var(--panel);border:1px solid var(--bd);border-radius:14px;padding:18px}
+label{display:block;font-size:12px;font-weight:700;color:var(--mu);margin:14px 0 5px;text-transform:uppercase;letter-spacing:.04em}
+input[type=text],textarea{width:100%;padding:9px 10px;border:1px solid var(--bd);border-radius:8px;background:var(--bg);color:var(--tx);font:inherit}
+textarea{resize:vertical;min-height:90px}
+.row{display:flex;gap:10px}.row>div{flex:1}
+input[type=color]{width:46px;height:38px;border:1px solid var(--bd);border-radius:8px;background:none;padding:2px}
+button{font:inherit;font-weight:700;border:0;border-radius:8px;padding:10px 14px;cursor:pointer;background:var(--ac);color:#fff}
+button.sec{background:var(--bg);color:var(--tx);border:1px solid var(--bd)}
+#res button{display:flex;gap:10px;align-items:center;width:100%;text-align:left;background:var(--bg);color:var(--tx);border:1px solid var(--bd);margin-top:6px;padding:6px}
+#res img{width:44px;height:44px;border-radius:4px}
+#msg{font-size:12px;color:var(--mu);margin-top:6px;min-height:16px}
+.stage{display:flex;flex-direction:column;align-items:center;gap:14px}
+canvas{width:100%;max-width:560px;height:auto;border-radius:6px;box-shadow:0 8px 30px rgba(0,0,0,.2);background:#fff}
+</style>
+</head>
+<body>
+<div class="wrap">
+ <div class="panel">
+  <h1>Gerador de posters</h1>
+  <label>1. Buscar álbum</label>
+  <div class="row"><input type="text" id="q" placeholder="Ex.: From Zero Linkin Park"><button id="go" type="button" style="flex:none">Buscar</button></div>
+  <div id="res"></div>
+  <label>2. Link do álbum no Spotify (para o código)</label>
+  <input type="text" id="sp" placeholder="https://open.spotify.com/album/...">
+  <div id="msg"></div>
+  <label>Ou envie a imagem do código</label>
+  <input type="file" id="codeFile" accept="image/*">
+  <label>Capa (opcional, para trocar)</label>
+  <input type="file" id="cover" accept="image/*">
+  <label>Álbum</label><input type="text" id="title" value="Título do álbum">
+  <label>Artista</label><input type="text" id="artist" value="Artista">
+  <label>Faixas (uma por linha)</label><textarea id="tracks" rows="8"></textarea>
+  <label>Integrantes (um por linha)</label><textarea id="members" rows="5"></textarea>
+  <div class="row"><div><label>Data</label><input type="text" id="date"></div><div><label>Duração</label><input type="text" id="dur"></div></div>
+  <label>Fonte do poster</label>
+  <select id="fontSel" style="width:100%;padding:9px 10px;border:1px solid var(--bd);border-radius:8px;background:var(--bg);color:var(--tx);font:inherit"><optgroup label="Fontes públicas"><option value="Montserrat">Montserrat (padrão)</option><option>Poppins</option><option>Roboto</option><option>Inter</option><option>Open Sans</option><option>Lato</option><option>Raleway</option><option>Oswald</option><option>Playfair Display</option><option>Arial</option><option>Helvetica</option><option>Georgia</option></optgroup><optgroup label="Sua fonte"><option value="PosterCustom" disabled>Minha fonte (carregue abaixo)</option></optgroup></select>
+  <div style="font-size:12px;color:var(--mu);margin-top:8px">Ou use arquivos de fonte seus:</div>
+  <input type="file" id="fontFiles" accept=".woff2,.woff,.ttf,.otf" multiple style="margin-top:4px">
+  <div style="font-size:12px;color:var(--mu);margin-top:4px">Os arquivos ficam só no seu navegador; nada é enviado nem hospedado.</div>
+  <label>Cor de destaque</label>
+  <div class="row" style="align-items:center"><input type="color" id="ac" value="#a8629a"><button class="sec" id="auto" type="button">Pegar cor da capa</button></div>
+  <label style="margin-top:18px"><input type="checkbox" id="spot" checked style="vertical-align:middle"> Mostrar código do Spotify</label>
+ </div>
+ <div class="stage">
+  <canvas id="cv" width="1654" height="2339"></canvas>
+  <button id="dl" type="button">Baixar PNG</button>
+ </div>
+</div>
+<script>
+const $=id=>document.getElementById(id),cv=$('cv'),ctx=cv.getContext('2d'),W=1654,H=2339,M=66;
+let img=null,codeImg=null;
+let FAM='Montserrat';
+const F=(w,s)=>w+' '+s+'px "'+FAM+'", Montserrat, system-ui, sans-serif';
+const lines=id=>$(id).value.split('\n').map(s=>s.trim()).filter(Boolean);
+function fit(t,w,size,wt){let s=size;ctx.font=F(wt,s);while(ctx.measureText(t).width>w&&s>20){s-=2;ctx.font=F(wt,s)}return s}
+function rng(seed){let h=2166136261;for(let i=0;i<seed.length;i++){h^=seed.charCodeAt(i);h=Math.imul(h,16777619)}return()=>{h^=h<<13;h^=h>>>17;h^=h<<5;return((h>>>0)%1000)/1000}}
+function render(){
+ const ac=$('ac').value;ctx.fillStyle='#fff';ctx.fillRect(0,0,W,H);
+ const cw=W-2*M,ch=1476,cy=M;
+ if(img){const s=Math.max(cw/img.width,ch/img.height),w=img.width*s,h=img.height*s;ctx.save();ctx.beginPath();ctx.rect(M,cy,cw,ch);ctx.clip();ctx.drawImage(img,M+(cw-w)/2,cy+(ch-h)/2,w,h);ctx.restore()}
+ else{const g=ctx.createLinearGradient(M,cy,M+cw,cy+ch);g.addColorStop(0,ac);g.addColorStop(1,'#15121a');ctx.fillStyle=g;ctx.fillRect(M,cy,cw,ch);ctx.fillStyle='rgba(255,255,255,.8)';ctx.font=F(700,40);ctx.textAlign='center';ctx.fillText('Busque um álbum ou envie a capa',W/2,cy+ch/2)}
+ ctx.textAlign='left';
+ const t=$('title').value,a=$('artist').value,sp=$('spot').checked,tw=sp?900:cw;
+ fit(t,tw,118,800);ctx.fillStyle=ac;ctx.fillText(t,M-4,1665);
+ fit(a,tw,58,700);ctx.fillStyle='#000';ctx.fillText(a,M-2,1738);
+ if(sp){
+  if(codeImg){ctx.drawImage(codeImg,1040,1583,520,130)}
+  else{const cx=1095,y=1648;ctx.fillStyle='#000';ctx.beginPath();ctx.arc(cx,y,40,0,7);ctx.fill();
+   ctx.strokeStyle='#fff';ctx.lineCap='round';[0,1,2].forEach(i=>{ctx.lineWidth=6-i;ctx.beginPath();ctx.arc(cx,y+22+i*9-12,22-i*5,Math.PI*1.2,Math.PI*1.8);ctx.stroke()});
+   const r=rng(t+a);let x=1162;for(let i=0;i<34;i++){const h=i%7===3?14:10+r()*75;ctx.fillStyle='#000';ctx.beginPath();ctx.roundRect(x,y-h/2,6,h,3);ctx.fill();x+=11}}
+ }
+ const tr=lines('tracks'),half=Math.max(Math.ceil(tr.length/2),1),lh=Math.min(45,420/half),fs=Math.min(34,lh*.76);
+ ctx.fillStyle='#000';ctx.font=F(600,fs);
+ tr.forEach((s,i)=>ctx.fillText(String(i+1).padStart(2,'0')+' - '+s,M+(i<half?0:1)*554,1830+(i%half)*lh));
+ ctx.textAlign='right';ctx.font=F(600,34);lines('members').slice(0,10).forEach((s,i)=>ctx.fillText(s,W-M,1832+i*Math.min(45,lh)));
+ ctx.textAlign='left';ctx.font=F(800,23);ctx.fillText($('date').value,M,2205);
+ ctx.textAlign='right';ctx.fillText($('dur').value,W-M,2205);
+ ctx.fillStyle=ac;ctx.fillRect(M,2215,cw,16);
+}
+const loadImg=src=>new Promise((ok,no)=>{const i=new Image();i.onload=()=>ok(i);i.onerror=no;i.src=src});
+const msg=t=>$('msg').textContent=t||'';
+document.querySelectorAll('input,textarea').forEach(e=>e.addEventListener('input',render));
+$('cover').onchange=async e=>{const f=e.target.files[0];if(f){img=await loadImg(URL.createObjectURL(f));render()}};
+$('codeFile').onchange=async e=>{const f=e.target.files[0];if(f){codeImg=await loadImg(URL.createObjectURL(f));render()}};
+$('auto').onclick=()=>{if(!img)return;const c=document.createElement('canvas');c.width=c.height=40;const x=c.getContext('2d');x.drawImage(img,0,0,40,40);const d=x.getImageData(0,0,40,40).data;let R=0,G=0,B=0,k=0;
+ for(let i=0;i<d.length;i+=4){const mx=Math.max(d[i],d[i+1],d[i+2]),mn=Math.min(d[i],d[i+1],d[i+2]);if(mx-mn>40&&mx>90){R+=d[i];G+=d[i+1];B+=d[i+2];k++}}
+ if(k){$('ac').value='#'+[R,G,B].map(v=>Math.round(v/k).toString(16).padStart(2,'0')).join('');render()}};
+async function search(){
+ const q=$('q').value.trim();if(!q)return;msg('Buscando…');$('res').innerHTML='';
+ try{const r=await (await fetch('/api/search?q='+encodeURIComponent(q))).json();msg(r.length?'':'Nada encontrado.');
+  r.forEach(a=>{const b=document.createElement('button');b.type='button';b.innerHTML='<img src="'+a.thumb+'" alt=""><span><b></b><br><small></small></span>';
+   b.querySelector('b').textContent=a.title;b.querySelector('small').textContent=a.artist;b.onclick=()=>pick(a.id);$('res').appendChild(b)})}
+ catch(e){msg('Erro na busca.')}}
+const MES=['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+async function pick(id){
+ msg('Carregando álbum…');$('res').innerHTML='';
+ try{const a=await (await fetch('/api/album?id='+id)).json();
+  $('title').value=a.title||'';$('artist').value=a.artist||'';$('tracks').value=(a.tracks||[]).join('\n');
+  if(a.date){const [y,m,d]=a.date.split('-');$('date').value=+d+' de '+MES[+m-1]+' de '+y}
+  if(a.duration){$('dur').value=Math.floor(a.duration/60)+' min '+a.duration%60+' s'}
+  if(a.cover){img=await loadImg('/api/img?u='+encodeURIComponent(a.cover));$('auto').click()}
+  msg('Pronto. Agora cole o link do Spotify para o código.');render()}
+ catch(e){msg('Erro ao carregar o álbum.')}}
+$('go').onclick=search;$('q').addEventListener('keydown',e=>{if(e.key==='Enter')search()});
+$('sp').addEventListener('input',async()=>{
+ const m=$('sp').value.match(/album[/:]([A-Za-z0-9]{22})/);if(!m)return;msg('Buscando código…');
+ try{codeImg=await loadImg('/api/code?id='+m[1]);msg('Código carregado.')}catch(e){codeImg=null;msg('Não consegui o código. Envie a imagem manualmente.')}render()});
+$('dl').onclick=()=>cv.toBlob(b=>{const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=($('title').value||'poster')+'.png';a.click()},'image/png');
+$('fontFiles').onchange=async e=>{
+ let n=0;
+ for(const f of e.target.files){
+  const nm=f.name.toLowerCase();
+  const wt=/variable/.test(nm)?'100 900':/black|heavy/.test(nm)?'900':/extrabold/.test(nm)?'800':/bold/.test(nm)?'700':/semibold/.test(nm)?'600':/medium/.test(nm)?'500':/light/.test(nm)?'300':'400';
+  try{const ff=new FontFace('PosterCustom',await f.arrayBuffer(),{weight:wt});await ff.load();document.fonts.add(ff);n++}catch(err){}
+ }
+ if(n){const o=$('fontSel').querySelector('[value=PosterCustom]');o.disabled=false;o.textContent='Minha fonte ('+n+' arquivo'+(n>1?'s':'')+')';$('fontSel').value='PosterCustom';FAM='PosterCustom';render()}
+ else msg('Não consegui ler essas fontes.');
+};
+$('fontSel').onchange=async()=>{FAM=$('fontSel').value;try{await Promise.all([600,700,800].map(w=>document.fonts.load(F(w,30))))}catch(e){}render()};
+render();Promise.all([600,700,800].map(w=>document.fonts.load(F(w,30)))).then(render).catch(()=>{});
+</script>
+</body>
+</html>
