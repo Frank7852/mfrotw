@@ -1,1 +1,1 @@
-{ "name": "gerador-de-posters", "version": "1.0.0", "engines": { "node": ">=18" } }
+{ "name": "gerador-de-posters", "version": "1.0.0", "engines": { "node": "22.x" } }
